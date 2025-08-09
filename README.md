@@ -2,6 +2,30 @@
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
+## Setup (Prueba Técnica)
+
+Install dependencies:
+
+```
+npm install
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+npm install react-router-dom @tanstack/react-query date-fns
+```
+
+Tailwind config already included. Ensure `src/index.css` contains Tailwind directives.
+
+Run dev server:
+
+```
+npm run dev
+```
+
+Routes:
+- `/` Álbumes
+- `/album/:id` Detalle de álbum
+- `/form` Formulario
+
 Currently, two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh

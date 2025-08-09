@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 export default function AlbumsPage() {
   return (
     <div
@@ -26,7 +28,11 @@ export default function AlbumsPage() {
             <div className="flex overflow-y-auto [-ms-scrollbar-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex items-stretch p-4 gap-3">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div key={i} className="flex h-full flex-1 flex-col gap-4 rounded-lg min-w-60">
+                  <Link 
+                    key={i} 
+                    to={`/album/${i}`}
+                    className="flex h-full flex-1 flex-col gap-4 rounded-lg min-w-60 hover:opacity-90 transition-opacity"
+                  >
                     <div
                       className="w-full bg-center bg-no-repeat aspect-square bg-cover rounded-lg flex flex-col"
                       style={{
@@ -63,7 +69,7 @@ export default function AlbumsPage() {
                         ][i - 1]}
                       </p>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>

@@ -9,6 +9,8 @@ export default function ImageGrid({
   totalPages = 1,
   onPageChange = null
 }) {
+  // Asegurar que images sea siempre un array para evitar errores
+  const safeImages = Array.isArray(images) ? images : []
   
   // Función para obtener URL optimizada de imagen
   const getOptimizedImageUrl = (mediaItem, size = 400) => {
@@ -60,15 +62,7 @@ export default function ImageGrid({
       const diffTime = now - date // Cambiar a diferencia directa para evitar problemas con fechas futuras
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
       
-      // Debug log
-      console.log('Fecha procesada:', {
-        original: dateToUse,
-        parsed: date.toISOString(),
-        source: dateSource,
-        diffDays: diffDays,
-        diffTime: diffTime,
-        now: now.toISOString()
-      })
+      
       
       // Si la fecha es futura (puede pasar con algunos metadatos), mostrar fecha exacta
       if (diffTime < 0) {
@@ -251,7 +245,7 @@ export default function ImageGrid({
     )
   }
 
-  if (images.length === 0) {
+  if (safeImages.length === 0) {
     return (
       <div className="text-center py-20">
         <div className="inline-flex items-center justify-center w-20 h-20 bg-slate-100 rounded-full mb-6">
@@ -269,7 +263,7 @@ export default function ImageGrid({
     <>
       {/* Grid de imágenes completamente responsivo */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4 p-3 sm:p-4">
-        {images.map((mediaItem) => {
+        {safeImages.map((mediaItem) => {
           const imageInfo = getImageInfo(mediaItem)
           const optimizedUrl = getOptimizedImageUrl(mediaItem)
           

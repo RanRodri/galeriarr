@@ -14,47 +14,40 @@ export const useImages = (albumId = null) => {
   const [totalImages, setTotalImages] = useState(0)
   const [imagesPerPage] = useState(12)
 
-
-
   // Cargar imágenes
   const loadImages = async (pageToken = null) => {
     if (!isAuthenticated || !albumId) {
-      console.log('🚫 useImages - No se pueden cargar imágenes:', { isAuthenticated, albumId })
       return
     }
 
     try {
       setLoading(true)
       setError(null)
-      console.log('🔄 useImages - Iniciando carga de imágenes para álbum:', albumId)
 
       let result
       if (albumId) {
         // Cargar imágenes de un álbum específico
-        console.log('📂 useImages - Cargando imágenes del álbum:', albumId)
         result = await googlePhotosAPI.getMediaItemsFromAlbum(albumId, 50, pageToken)
-        console.log('✅ useImages - Imágenes del álbum cargadas:', result)
       } else {
         // Cargar todas las imágenes del usuario
-        console.log('📸 useImages - Cargando todas las imágenes del usuario')
         result = await googlePhotosAPI.getAllMediaItems(50, pageToken)
-        console.log('✅ useImages - Todas las imágenes cargadas:', result)
       }
+      
+      // Asegurar que result.mediaItems sea siempre un array
+      const mediaItems = Array.isArray(result?.mediaItems) ? result.mediaItems : []
       
       if (pageToken) {
         // Si es paginación, agregar a las existentes
-        setImages(prev => [...prev, ...result.mediaItems])
-        console.log('📄 useImages - Imágenes agregadas por paginación:', result.mediaItems.length)
+        setImages(prev => [...prev, ...mediaItems])
       } else {
         // Si es primera carga, reemplazar
-        setImages(result.mediaItems)
-        console.log('🆕 useImages - Imágenes reemplazadas (primera carga):', result.mediaItems.length)
+        setImages(mediaItems)
       }
       
-      setNextPageToken(result.nextPageToken)
+      setNextPageToken(result?.nextPageToken || null)
       // Solo establecer el total en la primera carga
       if (!pageToken) {
-        setTotalImages(result.mediaItems.length)
+        setTotalImages(mediaItems.length)
       }
     } catch (err) {
       console.error('❌ useImages - Error loading images:', err)
@@ -71,10 +64,12 @@ export const useImages = (albumId = null) => {
       } else if (err.message.includes('500') || err.message.includes('502') || err.message.includes('503')) {
         errorMessage = 'Error del servidor de Google Photos. Por favor, intenta más tarde.'
       } else if (err.message.includes('network') || err.message.includes('fetch')) {
-        errorMessage = 'Error de conexión. Verifica tu conexión a internet e intenta nuevamente.'
+        errorMessage = 'Error de conexión. Verifica tu conexión a internet e intenta más tarde.'
       }
       
       setError(errorMessage)
+      // En caso de error, asegurar que images sea un array vacío
+      setImages([])
     } finally {
       setLoading(false)
     }
@@ -105,19 +100,15 @@ export const useImages = (albumId = null) => {
 
   // Agregar imágenes existentes al álbum
   const addImagesToAlbum = async (imageIds) => {
-    if (!isAuthenticated) {
-      throw new Error('User not authenticated')
-    }
-
-    if (!albumId) {
-      throw new Error('Album ID is required')
+    if (!isAuthenticated || !albumId) {
+      throw new Error('User not authenticated or album ID missing')
     }
 
     try {
       await googlePhotosAPI.addMediaItemsToAlbum(albumId, imageIds)
       
-      // Recargar las imágenes del álbum
-      reloadImages()
+      // Recargar imágenes para mostrar las nuevas
+      await loadImages()
     } catch (err) {
       console.error('Error adding images to album:', err)
       throw err
@@ -126,18 +117,14 @@ export const useImages = (albumId = null) => {
 
   // Remover imágenes del álbum
   const removeImagesFromAlbum = async (imageIds) => {
-    if (!isAuthenticated) {
-      throw new Error('User not authenticated')
-    }
-
-    if (!albumId) {
-      throw new Error('Album ID is required')
+    if (!isAuthenticated || !albumId) {
+      throw new Error('User not authenticated or album ID missing')
     }
 
     try {
       await googlePhotosAPI.removeMediaItemsFromAlbum(albumId, imageIds)
       
-      // Remover las imágenes de la lista local
+      // Remover imágenes de la lista local
       setImages(prev => prev.filter(img => !imageIds.includes(img.id)))
     } catch (err) {
       console.error('Error removing images from album:', err)
@@ -156,28 +143,14 @@ export const useImages = (albumId = null) => {
       setError(null)
 
       const result = await googlePhotosAPI.searchPhotosByDateRange(startDate, endDate)
-      setImages(result)
-      setNextPageToken(null) // Reset pagination for search results
+      
+      setImages(result.mediaItems)
+      setNextPageToken(result.nextPageToken)
+      setTotalImages(result.mediaItems.length)
+      setCurrentPage(1)
     } catch (err) {
       console.error('Error searching images by date:', err)
-      
-      // Categorizar errores para mejor UX
-      let errorMessage = err.message
-      
-      if (err.message.includes('403')) {
-        errorMessage = 'No tienes permisos suficientes para buscar imágenes.'
-      } else if (err.message.includes('401')) {
-        errorMessage = 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.'
-      } else if (err.message.includes('400')) {
-        errorMessage = 'Los parámetros de búsqueda no son válidos.'
-      } else if (err.message.includes('500') || err.message.includes('502') || err.message.includes('503')) {
-        errorMessage = 'Error del servidor de Google Photos. Por favor, intenta más tarde.'
-      } else if (err.message.includes('network') || err.message.includes('fetch')) {
-        errorMessage = 'Error de conexión. Verifica tu conexión a internet e intenta nuevamente.'
-      }
-      
-      setError(errorMessage)
-      throw err
+      setError(err.message)
     } finally {
       setLoading(false)
     }
@@ -192,13 +165,13 @@ export const useImages = (albumId = null) => {
 
   // Recargar imágenes
   const reloadImages = () => {
+    setImages([])
     setNextPageToken(null)
-    setTotalImages(0)
     setCurrentPage(1)
     loadImages()
   }
 
-  // Obtener imagen individual
+  // Obtener imagen específica
   const getImage = async (imageId) => {
     if (!isAuthenticated) {
       throw new Error('User not authenticated')
@@ -212,22 +185,20 @@ export const useImages = (albumId = null) => {
     }
   }
 
-  // Funciones de paginación por página
+  // Navegación de páginas
   const goToPage = (page) => {
-    if (page >= 1 && page <= getTotalPages()) {
-      setCurrentPage(page)
-    }
+    setCurrentPage(page)
   }
 
   const nextPage = () => {
     if (currentPage < getTotalPages()) {
-      setCurrentPage(prev => prev + 1)
+      setCurrentPage(currentPage + 1)
     }
   }
 
   const prevPage = () => {
     if (currentPage > 1) {
-      setCurrentPage(prev => prev - 1)
+      setCurrentPage(currentPage - 1)
     }
   }
 
@@ -241,24 +212,17 @@ export const useImages = (albumId = null) => {
     return images.slice(startIndex, endIndex)
   }
 
-  // Cargar imágenes al montar o cuando cambie el estado de autenticación/albumId
+  // Efecto para cargar imágenes cuando cambie la autenticación o el álbum
   useEffect(() => {
-    console.log('🔄 useImages - useEffect ejecutado:', {
-      isAuthenticated,
-      albumId,
-      currentImagesCount: images.length
-    })
-    
-    if (isAuthenticated) {
-      console.log('✅ useImages - Usuario autenticado, cargando imágenes')
+    if (isAuthenticated && albumId) {
       loadImages()
-    } else {
-      console.log('❌ useImages - Usuario no autenticado, limpiando estado')
+    } else if (!isAuthenticated) {
+      // Limpiar estado cuando no esté autenticado
       setImages([])
-      setError(null)
       setNextPageToken(null)
-      setTotalImages(0)
+      setError(null)
       setCurrentPage(1)
+      setTotalImages(0)
     }
   }, [isAuthenticated, albumId])
 
@@ -266,25 +230,23 @@ export const useImages = (albumId = null) => {
     images,
     loading,
     error,
-    hasMoreImages: !!nextPageToken,
-    // Estados de paginación por página
     currentPage,
     totalImages,
     imagesPerPage,
-    totalPages: getTotalPages(),
-    currentPageImages: getCurrentPageImages(),
-    // Funciones de paginación por página
-    goToPage,
-    nextPage,
-    prevPage,
-    // Funciones existentes
+    hasMoreImages: !!nextPageToken,
+    loadImages,
     uploadImage,
     addImagesToAlbum,
     removeImagesFromAlbum,
     searchImagesByDateRange,
     loadMoreImages,
     reloadImages,
-    getImage
+    getImage,
+    goToPage,
+    nextPage,
+    prevPage,
+    getTotalPages,
+    getCurrentPageImages
   }
 }
 

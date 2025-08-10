@@ -12,27 +12,21 @@ export const useAlbums = () => {
   // Cargar álbumes
   const loadAlbums = async (pageToken = null) => {
     if (!isAuthenticated) {
-      console.log('🚫 useAlbums - No se pueden cargar álbumes: usuario no autenticado')
       return
     }
 
     try {
       setLoading(true)
       setError(null)
-      console.log('🔄 useAlbums - Iniciando carga de álbumes')
 
-      // Usar el método que obtiene TODOS los álbumes del usuario (sistema, móvil, app)
       const result = await googlePhotosAPI.getAllUserAlbums(50, pageToken)
-      console.log('✅ useAlbums - Álbumes cargados:', result)
       
       if (pageToken) {
         // Si es paginación, agregar a los existentes
         setAlbums(prev => [...prev, ...result.albums])
-        console.log('📄 useAlbums - Álbumes agregados por paginación:', result.albums.length)
       } else {
         // Si es primera carga, reemplazar
         setAlbums(result.albums)
-        console.log('🆕 useAlbums - Álbumes reemplazados (primera carga):', result.albums.length)
       }
       
       setNextPageToken(result.nextPageToken)
@@ -42,14 +36,14 @@ export const useAlbums = () => {
       // Categorizar errores para mejor UX
       let errorMessage = err.message
       
-      if (err.message.includes('403') || err.message.includes('Acceso denegado')) {
-        errorMessage = 'No tienes permisos suficientes para acceder a Google Photos. Esto puede deberse a: 1) La API no está habilitada en tu proyecto de Google Cloud, 2) Los scopes no fueron otorgados correctamente, 3) La sesión necesita ser renovada. Por favor, intenta re-autenticarte.'
+      if (err.message.includes('403')) {
+        errorMessage = 'No tienes permisos suficientes para acceder a los álbumes.'
       } else if (err.message.includes('401')) {
         errorMessage = 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.'
       } else if (err.message.includes('500') || err.message.includes('502') || err.message.includes('503')) {
         errorMessage = 'Error del servidor de Google Photos. Por favor, intenta más tarde.'
       } else if (err.message.includes('network') || err.message.includes('fetch')) {
-        errorMessage = 'Error de conexión. Verifica tu conexión a internet e intenta más tarde.'
+        errorMessage = 'Error de conexión. Verifica tu conexión a internet e intenta nuevamente.'
       }
       
       setError(errorMessage)
@@ -109,25 +103,91 @@ export const useAlbums = () => {
 
   // Recargar álbumes
   const reloadAlbums = () => {
+    setAlbums([])
     setNextPageToken(null)
     loadAlbums()
   }
 
-  // Cargar álbumes al montar o cuando cambie el estado de autenticación
-  useEffect(() => {
-    console.log('🔄 useAlbums - useEffect ejecutado:', {
-      isAuthenticated,
-      currentAlbumsCount: albums.length
+  // Obtener álbum específico
+  const getAlbum = async (albumId) => {
+    if (!isAuthenticated) {
+      throw new Error('User not authenticated')
+    }
+
+    try {
+      return await googlePhotosAPI.getAlbum(albumId)
+    } catch (err) {
+      console.error('Error getting album:', err)
+      throw err
+    }
+  }
+
+  // Buscar álbum por título
+  const searchAlbumByTitle = (searchTerm) => {
+    if (!searchTerm.trim()) {
+      return albums
+    }
+
+    const term = searchTerm.toLowerCase()
+    return albums.filter(album => 
+      album.title.toLowerCase().includes(term)
+    )
+  }
+
+  // Filtrar álbumes por tipo
+  const filterAlbumsByType = (type) => {
+    switch (type) {
+      case 'user':
+        return albums.filter(album => album.source === 'user')
+      case 'shared':
+        return albums.filter(album => album.source === 'shared')
+      case 'system':
+        return albums.filter(album => album.source === 'system')
+      default:
+        return albums
+    }
+  }
+
+  // Ordenar álbumes
+  const sortAlbums = (sortBy = 'creationTime', order = 'desc') => {
+    const sorted = [...albums].sort((a, b) => {
+      let aValue, bValue
+
+      switch (sortBy) {
+        case 'title':
+          aValue = a.title.toLowerCase()
+          bValue = b.title.toLowerCase()
+          break
+        case 'mediaItemsCount':
+          aValue = a.mediaItemsCount || 0
+          bValue = b.mediaItemsCount || 0
+          break
+        case 'creationTime':
+        default:
+          aValue = new Date(a.creationTime || 0)
+          bValue = new Date(b.creationTime || 0)
+          break
+      }
+
+      if (order === 'asc') {
+        return aValue > bValue ? 1 : -1
+      } else {
+        return aValue < bValue ? 1 : -1
+      }
     })
-    
+
+    return sorted
+  }
+
+  // Efecto para cargar álbumes cuando cambie la autenticación
+  useEffect(() => {
     if (isAuthenticated) {
-      console.log('✅ useAlbums - Usuario autenticado, cargando álbumes')
       loadAlbums()
     } else {
-      console.log('❌ useAlbums - Usuario no autenticado, limpiando estado')
+      // Limpiar estado cuando no esté autenticado
       setAlbums([])
-      setError(null)
       setNextPageToken(null)
+      setError(null)
     }
   }, [isAuthenticated])
 
@@ -136,11 +196,14 @@ export const useAlbums = () => {
     loading,
     error,
     hasMoreAlbums: !!nextPageToken,
+    loadAlbums,
     createAlbum,
     shareAlbum,
     loadMoreAlbums,
-    reloadAlbums
+    reloadAlbums,
+    getAlbum,
+    searchAlbumByTitle,
+    filterAlbumsByType,
+    sortAlbums
   }
 }
-
-export default useAlbums

@@ -5,7 +5,14 @@ import { useAlbums } from '../hooks/useAlbums.js'
 import LoginPrompt from '../components/LoginPrompt.jsx'
 import Swal from 'sweetalert2'
 
-// Componente para el header de la página
+// Componentes UI reutilizables
+import { GradientButton, LoadingSpinner, Badge, UserAvatar } from '../components/ui'
+
+// ============================================================================
+// COMPONENTES ESPECÍFICOS DE LA PÁGINA
+// ============================================================================
+
+// Header de la página
 const AlbumsHeader = ({ user, onCreateAlbum, isCreatingAlbum }) => (
   <div className="bg-white/80 backdrop-blur-sm shadow-lg border-b border-gray-200/50">
     <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6">
@@ -17,35 +24,15 @@ const AlbumsHeader = ({ user, onCreateAlbum, isCreatingAlbum }) => (
   </div>
 )
 
-// Componente para la información del usuario
+// Información del usuario
 const UserInfo = ({ user }) => (
   <div className="flex items-center space-x-3 sm:space-x-6">
-    <UserAvatar user={user} />
+    <UserAvatar user={user} size="lg" />
     <UserDetails user={user} />
   </div>
 )
 
-// Componente para el avatar del usuario
-const UserAvatar = ({ user }) => (
-  <div className="relative">
-    {user?.picture ? (
-      <img
-        src={user.picture}
-        alt={`Foto de perfil de ${user.name || user.email}`}
-        className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-xl sm:rounded-2xl object-cover border-2 sm:border-4 border-white ring-2 sm:ring-4 ring-blue-100 shadow-lg"
-      />
-    ) : (
-      <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-700 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg border-2 sm:border-4 border-white ring-2 sm:ring-4 ring-blue-100">
-        <span className="text-white font-bold text-lg sm:text-xl md:text-2xl">
-          {user?.name?.charAt(0) || user?.email?.charAt(0) || 'U'}
-        </span>
-      </div>
-    )}
-    <div className="absolute -bottom-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-green-500 border-2 border-white rounded-full"></div>
-  </div>
-)
-
-// Componente para los detalles del usuario
+// Detalles del usuario
 const UserDetails = ({ user }) => (
   <div className="space-y-1 min-w-0 flex-1">
     <h1 className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-indigo-900 bg-clip-text text-transparent truncate">
@@ -56,21 +43,23 @@ const UserDetails = ({ user }) => (
         {user?.name || user?.email || 'Usuario'}
       </p>
       {user?.name && user?.email && (
-        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full w-fit">
+        <Badge variant="default" size="md">
           {user.email}
-        </span>
+        </Badge>
       )}
     </div>
   </div>
 )
 
-// Componente para el botón de crear álbum
+// Botón de crear álbum
 const CreateAlbumButton = ({ onCreateAlbum, isCreatingAlbum }) => (
   <div className="flex items-center justify-center sm:justify-end">
-    <button
+    <GradientButton
       onClick={onCreateAlbum}
       disabled={isCreatingAlbum}
-      className="w-full sm:w-auto bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 disabled:from-blue-400 disabled:via-indigo-400 disabled:to-purple-400 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-xl disabled:transform-none disabled:shadow-none flex items-center justify-center space-x-2 sm:space-x-3 shadow-lg text-sm sm:text-base"
+      variant="primary"
+      size="lg"
+      className="w-full sm:w-auto flex items-center justify-center space-x-2 sm:space-x-3"
     >
       {isCreatingAlbum ? (
         <>
@@ -88,11 +77,11 @@ const CreateAlbumButton = ({ onCreateAlbum, isCreatingAlbum }) => (
           <span>Nuevo Álbum</span>
         </>
       )}
-    </button>
+    </GradientButton>
   </div>
 )
 
-// Componente para el estado de carga
+// Estado de carga
 const LoadingState = () => (
   <div className="text-center py-12 sm:py-16">
     <div className="relative">
@@ -103,7 +92,7 @@ const LoadingState = () => (
   </div>
 )
 
-// Componente para el estado de error
+// Estado de error
 const ErrorState = ({ error, onRetry, onReAuth, onForceReAuth, onCleanAndReload }) => (
   <div className="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8 shadow-lg">
     <div className="flex flex-col lg:flex-row lg:items-start space-y-4 lg:space-y-0 lg:space-x-4">
@@ -120,7 +109,7 @@ const ErrorState = ({ error, onRetry, onReAuth, onForceReAuth, onCleanAndReload 
   </div>
 )
 
-// Componente para el icono de error
+// Icono de error
 const ErrorIcon = () => (
   <div className="flex-shrink-0 flex justify-center lg:justify-start">
     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -131,7 +120,7 @@ const ErrorIcon = () => (
   </div>
 )
 
-// Componente para el contenido del error
+// Contenido del error
 const ErrorContent = ({ error }) => (
   <div className="flex-1 min-w-0 text-center lg:text-left">
     <h3 className="text-base sm:text-lg font-semibold text-red-800 mb-2">Error al cargar álbumes</h3>
@@ -161,44 +150,32 @@ const ErrorContent = ({ error }) => (
   </div>
 )
 
-// Componente para las acciones del error
+// Acciones del error
 const ErrorActions = ({ error, onRetry, onReAuth, onForceReAuth, onCleanAndReload }) => (
   <div className="flex flex-col sm:flex-row lg:flex-col space-y-2 sm:space-y-0 sm:space-x-2 lg:space-x-0 lg:space-y-3">
-    <button
-      onClick={onRetry}
-      className="bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 transform hover:scale-105 shadow-md"
-    >
+    <GradientButton variant="danger" size="md" onClick={onRetry}>
       Reintentar
-    </button>
+    </GradientButton>
     
     {(error.includes('403') || error.includes('insufficient') || error.includes('permisos')) && (
       <>
-        <button
-          onClick={onReAuth}
-          className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 transform hover:scale-105 shadow-md"
-        >
+        <GradientButton variant="info" size="md" onClick={onReAuth}>
           Re-autenticar
-        </button>
+        </GradientButton>
         
-        <button
-          onClick={onForceReAuth}
-          className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 transform hover:scale-105 shadow-md"
-        >
+        <GradientButton variant="primary" size="md" onClick={onForceReAuth}>
           Forzar Nueva Auth
-        </button>
+        </GradientButton>
       </>
     )}
     
-    <button
-      onClick={onCleanAndReload}
-      className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 transform hover:scale-105 shadow-md"
-    >
+    <GradientButton variant="warning" size="md" onClick={onCleanAndReload}>
       Limpiar y Recargar
-    </button>
+    </GradientButton>
   </div>
 )
 
-// Componente para el estado vacío (sin álbumes)
+// Estado vacío (sin álbumes)
 const EmptyState = ({ onCreateAlbum }) => (
   <div className="text-center py-12 sm:py-16 md:py-20 px-4">
     <div className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg">
@@ -210,16 +187,13 @@ const EmptyState = ({ onCreateAlbum }) => (
     <p className="text-gray-600 mb-6 sm:mb-8 text-base sm:text-lg max-w-md mx-auto">
       Crea tu primer álbum para comenzar a organizar tus fotos de manera profesional
     </p>
-    <button
-      onClick={onCreateAlbum}
-      className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-xl font-bold text-base sm:text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-2xl shadow-lg w-full sm:w-auto"
-    >
+    <GradientButton variant="primary" size="xl" onClick={onCreateAlbum} className="w-full sm:w-auto">
       Crear Primer Álbum
-    </button>
+    </GradientButton>
   </div>
 )
 
-// Componente para la tarjeta de álbum individual
+// Tarjeta de álbum individual
 const AlbumCard = ({ album }) => (
   <Link
     to={`/album/${album.id}`}
@@ -230,7 +204,7 @@ const AlbumCard = ({ album }) => (
   </Link>
 )
 
-// Componente para la portada del álbum
+// Portada del álbum
 const AlbumCover = ({ album }) => (
   <div className="aspect-square overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 relative">
     <img
@@ -256,7 +230,7 @@ const AlbumCover = ({ album }) => (
   </div>
 )
 
-// Componente para la información del álbum
+// Información del álbum
 const AlbumInfo = ({ album }) => (
   <div className="p-3 sm:p-4 md:p-5">
     <h3 className="font-bold text-gray-900 text-sm sm:text-base mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors duration-200">
@@ -274,16 +248,18 @@ const AlbumInfo = ({ album }) => (
   </div>
 )
 
-// Componente para el botón de cargar más álbumes
+// Botón de cargar más álbumes
 const LoadMoreButton = ({ hasMoreAlbums, loading, onLoadMore }) => {
   if (!hasMoreAlbums) return null
   
   return (
     <div className="text-center mt-8 sm:mt-10 md:mt-12">
-      <button
+      <GradientButton
+        variant="secondary"
+        size="lg"
         onClick={onLoadMore}
         disabled={loading}
-        className="bg-gradient-to-r from-gray-100 via-gray-200 to-gray-300 hover:from-gray-200 hover:via-gray-300 hover:to-gray-400 disabled:from-gray-50 disabled:via-gray-100 disabled:to-gray-200 text-gray-700 hover:text-gray-800 disabled:text-gray-400 px-6 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-xl disabled:transform-none disabled:shadow-none shadow-lg w-full sm:w-auto max-w-xs"
+        className="w-full sm:w-auto max-w-xs flex items-center justify-center"
       >
         {loading ? (
           <>
@@ -293,12 +269,16 @@ const LoadMoreButton = ({ hasMoreAlbums, loading, onLoadMore }) => {
         ) : (
           'Cargar más álbumes'
         )}
-      </button>
+      </GradientButton>
     </div>
   )
 }
 
-// Hook personalizado para manejar la creación de álbumes
+// ============================================================================
+// HOOKS PERSONALIZADOS
+// ============================================================================
+
+// Hook para manejar la creación de álbumes
 const useAlbumCreation = (createAlbum) => {
   const [isCreatingAlbum, setIsCreatingAlbum] = useState(false)
 
@@ -349,7 +329,7 @@ const useAlbumCreation = (createAlbum) => {
   return { isCreatingAlbum, handleCreateAlbum }
 }
 
-// Hook personalizado para manejar la limpieza de URL
+// Hook para limpiar parámetros de URL
 const useUrlCleanup = () => {
   useEffect(() => {
     const url = new URL(window.location.href)
@@ -366,7 +346,7 @@ const useUrlCleanup = () => {
   }, [])
 }
 
-// Hook personalizado para manejar la actualización de información del usuario
+// Hook para actualizar información del usuario
 const useUserInfoUpdate = (isAuthenticated, user, updateUserInfo) => {
   useEffect(() => {
     if (isAuthenticated && (!user?.name || !user?.picture)) {
@@ -374,6 +354,10 @@ const useUserInfoUpdate = (isAuthenticated, user, updateUserInfo) => {
     }
   }, [isAuthenticated, user, updateUserInfo])
 }
+
+// ============================================================================
+// FUNCIONES UTILITARIAS
+// ============================================================================
 
 // Función para obtener la URL de la portada del álbum
 const getAlbumCoverUrl = (album) => {
@@ -383,7 +367,10 @@ const getAlbumCoverUrl = (album) => {
   return 'https://via.placeholder.com/400x400/e5e7eb/9ca3af?text=Sin+Portada'
 }
 
-// Componente principal refactorizado
+// ============================================================================
+// COMPONENTE PRINCIPAL
+// ============================================================================
+
 export default function AlbumsPage() {
   const { isAuthenticated, user, authLoading, updateUserInfo } = useAuth()
   const { 
@@ -401,16 +388,6 @@ export default function AlbumsPage() {
   const { isCreatingAlbum, handleCreateAlbum } = useAlbumCreation(createAlbum)
   useUrlCleanup()
   useUserInfoUpdate(isAuthenticated, user, updateUserInfo)
-
-  // Logs de depuración
-  console.log('🔍 AlbumsPage Debug:', {
-    isAuthenticated,
-    authLoading,
-    albumsCount: albums?.length || 0,
-    loading,
-    error,
-    hasMoreAlbums
-  })
 
   // Funciones para manejar errores
   const handleReAuth = () => {
@@ -435,10 +412,7 @@ export default function AlbumsPage() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 text-sm sm:text-base">Verificando autenticación...</p>
-        </div>
+        <LoadingSpinner size="lg" text="Verificando autenticación..." />
       </div>
     )
   }

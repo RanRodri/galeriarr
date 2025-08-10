@@ -8,8 +8,6 @@ class GooglePhotosAPI {
   // Obtener todos los álbumes
   async getAlbums(pageSize = 50, pageToken = null) {
     try {
-      console.log('🔍 GooglePhotosAPI - getAlbums iniciado:', { pageSize, pageToken })
-      
       const params = new URLSearchParams({
         pageSize: pageSize.toString()
       })
@@ -19,11 +17,8 @@ class GooglePhotosAPI {
       }
 
       const endpoint = `${API_ENDPOINTS.ALBUMS}?${params.toString()}`
-      console.log('🌐 GooglePhotosAPI - getAlbums endpoint:', endpoint)
 
       const response = await googleAuth.authenticatedFetch(endpoint)
-
-      console.log('📥 GooglePhotosAPI - getAlbums response status:', response.status)
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -32,10 +27,6 @@ class GooglePhotosAPI {
       }
 
       const data = await response.json()
-      console.log('✅ GooglePhotosAPI - getAlbums success:', {
-        albumsCount: data.albums?.length || 0,
-        nextPageToken: data.nextPageToken
-      })
       
       return {
         albums: data.albums || [],
@@ -50,8 +41,6 @@ class GooglePhotosAPI {
   // Obtener todos los álbumes del usuario (app-created, shared, system)
   async getAllUserAlbums(pageSize = 50, pageToken = null) {
     try {
-      console.log('🔍 GooglePhotosAPI - getAllUserAlbums iniciado:', { pageSize, pageToken })
-      
       // Hacer llamadas paralelas a diferentes endpoints
       const [userAlbumsResponse, sharedAlbumsResponse] = await Promise.all([
         // Álbumes del usuario (incluye todos los álbumes, no solo app-created)
@@ -63,11 +52,6 @@ class GooglePhotosAPI {
           `${API_ENDPOINTS.SHARED_ALBUMS}?pageSize=${pageSize}`
         )
       ])
-
-      console.log('📥 GooglePhotosAPI - getAllUserAlbums responses:', {
-        userAlbumsStatus: userAlbumsResponse.status,
-        sharedAlbumsStatus: sharedAlbumsResponse.status
-      })
 
       if (!userAlbumsResponse.ok) {
         throw new Error(`Error fetching user albums: ${userAlbumsResponse.status}`)
@@ -82,11 +66,6 @@ class GooglePhotosAPI {
         sharedAlbumsResponse.json()
       ])
 
-      console.log('📊 GooglePhotosAPI - getAllUserAlbums data:', {
-        userAlbumsCount: userAlbumsData.albums?.length || 0,
-        sharedAlbumsCount: sharedAlbumsData.sharedAlbums?.length || 0
-      })
-
       // Procesar álbumes del usuario
       const userAlbums = (userAlbumsData.albums || []).map(album => ({
         ...album,
@@ -99,19 +78,15 @@ class GooglePhotosAPI {
         source: 'shared'
       }))
 
-      // Combinar y eliminar duplicados
-      const allAlbums = [...userAlbums, ...sharedAlbums]
-      const uniqueAlbums = allAlbums.filter((album, index, self) => 
-        index === self.findIndex(a => a.id === album.id)
-      )
-
-      console.log('✅ GooglePhotosAPI - getAllUserAlbums completado:', {
-        totalAlbums: uniqueAlbums.length,
-        nextPageToken: userAlbumsData.nextPageToken
+      // Combinar y ordenar por fecha de creación (más recientes primero)
+      const allAlbums = [...userAlbums, ...sharedAlbums].sort((a, b) => {
+        const dateA = new Date(a.creationTime || a.mediaItemsCount || 0)
+        const dateB = new Date(b.creationTime || b.mediaItemsCount || 0)
+        return dateB - dateA
       })
 
       return {
-        albums: uniqueAlbums,
+        albums: allAlbums,
         nextPageToken: userAlbumsData.nextPageToken
       }
     } catch (error) {
@@ -133,7 +108,7 @@ class GooglePhotosAPI {
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`Failed to create album: ${response.status}`)
       }
 
       return await response.json()
@@ -143,17 +118,12 @@ class GooglePhotosAPI {
     }
   }
 
-  // Obtener álbum por ID
+  // Obtener un álbum específico
   async getAlbum(albumId) {
     try {
-      console.log('🔍 GooglePhotosAPI - getAlbum iniciado:', albumId)
-      console.log('🌐 GooglePhotosAPI - Endpoint:', `${API_ENDPOINTS.ALBUMS}/${albumId}`)
-      
-      const response = await googleAuth.authenticatedFetch(
-        `${API_ENDPOINTS.ALBUMS}/${albumId}`
-      )
+      const endpoint = `${API_ENDPOINTS.ALBUMS}/${albumId}`
 
-      console.log('📥 GooglePhotosAPI - getAlbum response status:', response.status)
+      const response = await googleAuth.authenticatedFetch(endpoint)
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -162,7 +132,6 @@ class GooglePhotosAPI {
       }
 
       const albumData = await response.json()
-      console.log('✅ GooglePhotosAPI - getAlbum success:', albumData)
       return albumData
     } catch (error) {
       console.error('❌ GooglePhotosAPI - Error fetching album:', error)
@@ -170,7 +139,7 @@ class GooglePhotosAPI {
     }
   }
 
-  // Compartir álbum
+  // Compartir un álbum
   async shareAlbum(albumId, sharedAlbumOptions = {}) {
     try {
       const response = await googleAuth.authenticatedFetch(
@@ -180,15 +149,14 @@ class GooglePhotosAPI {
           body: JSON.stringify({
             sharedAlbumOptions: {
               isCollaborative: sharedAlbumOptions.isCollaborative || false,
-              isCommentable: sharedAlbumOptions.isCommentable || false,
-              ...sharedAlbumOptions
+              isCommentable: sharedAlbumOptions.isCommentable || false
             }
           })
         }
       )
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`Failed to share album: ${response.status}`)
       }
 
       return await response.json()
@@ -198,13 +166,9 @@ class GooglePhotosAPI {
     }
   }
 
-  // CRUD de Media Items (Imágenes)
-
-  // Buscar media items en un álbum
+  // Obtener elementos multimedia de un álbum
   async getMediaItemsFromAlbum(albumId, pageSize = 50, pageToken = null) {
     try {
-      console.log('🔍 GooglePhotosAPI - getMediaItemsFromAlbum iniciado:', { albumId, pageSize, pageToken })
-      
       const body = {
         albumId: albumId,
         pageSize: pageSize
@@ -214,16 +178,10 @@ class GooglePhotosAPI {
         body.pageToken = pageToken
       }
 
-      console.log('📤 GooglePhotosAPI - Request body:', body)
-      console.log('🌐 GooglePhotosAPI - Endpoint:', API_ENDPOINTS.SEARCH)
-
       const response = await googleAuth.authenticatedFetch(API_ENDPOINTS.SEARCH, {
         method: 'POST',
         body: JSON.stringify(body)
       })
-
-      console.log('📥 GooglePhotosAPI - Response status:', response.status)
-      console.log('📥 GooglePhotosAPI - Response headers:', Object.fromEntries(response.headers.entries()))
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -232,7 +190,6 @@ class GooglePhotosAPI {
       }
 
       const data = await response.json()
-      console.log('✅ GooglePhotosAPI - Response data:', data)
       
       return {
         mediaItems: data.mediaItems || [],
@@ -244,9 +201,7 @@ class GooglePhotosAPI {
     }
   }
 
-
-
-  // Buscar todos los media items del usuario
+  // Obtener todos los elementos multimedia del usuario
   async getAllMediaItems(pageSize = 100, pageToken = null) {
     try {
       const params = new URLSearchParams({
@@ -257,15 +212,15 @@ class GooglePhotosAPI {
         params.append('pageToken', pageToken)
       }
 
-      const response = await googleAuth.authenticatedFetch(
-        `${API_ENDPOINTS.MEDIA_ITEMS}?${params.toString()}`
-      )
+      const endpoint = `${API_ENDPOINTS.MEDIA_ITEMS}?${params.toString()}`
+      const response = await googleAuth.authenticatedFetch(endpoint)
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
       const data = await response.json()
+      
       return {
         mediaItems: data.mediaItems || [],
         nextPageToken: data.nextPageToken
@@ -276,12 +231,11 @@ class GooglePhotosAPI {
     }
   }
 
-  // Obtener media item por ID
+  // Obtener un elemento multimedia específico
   async getMediaItem(mediaItemId) {
     try {
-      const response = await googleAuth.authenticatedFetch(
-        `${API_ENDPOINTS.MEDIA_ITEMS}/${mediaItemId}`
-      )
+      const endpoint = `${API_ENDPOINTS.MEDIA_ITEMS}/${mediaItemId}`
+      const response = await googleAuth.authenticatedFetch(endpoint)
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -294,25 +248,22 @@ class GooglePhotosAPI {
     }
   }
 
-  // Subir archivo (paso 1: obtener upload token)
+  // Subir un archivo
   async uploadFile(file) {
     try {
-      // Paso 1: Subir el archivo y obtener upload token
-      const uploadResponse = await googleAuth.authenticatedFetch(API_ENDPOINTS.UPLOADS, {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch(API_ENDPOINTS.UPLOADS, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/octet-stream',
-          'X-Goog-Upload-Content-Type': file.type,
-          'X-Goog-Upload-Protocol': 'raw'
-        },
-        body: file
+        body: formData
       })
 
-      if (!uploadResponse.ok) {
-        throw new Error(`Upload failed! status: ${uploadResponse.status}`)
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.status}`)
       }
 
-      const uploadToken = await uploadResponse.text()
+      const uploadToken = await response.text()
       return uploadToken
     } catch (error) {
       console.error('Error uploading file:', error)
@@ -320,62 +271,52 @@ class GooglePhotosAPI {
     }
   }
 
-  // Crear media item desde upload token
+  // Crear un elemento multimedia
   async createMediaItem(uploadToken, description = '', albumId = null) {
     try {
-      const newMediaItems = [{
+      const mediaItem = {
         description: description,
         simpleMediaItem: {
           uploadToken: uploadToken
         }
-      }]
-
-      const body = {
-        newMediaItems: newMediaItems
       }
 
       if (albumId) {
-        body.albumId = albumId
+        mediaItem.albumId = albumId
       }
 
-      const response = await googleAuth.authenticatedFetch(API_ENDPOINTS.BATCH_CREATE, {
+      const response = await googleAuth.authenticatedFetch(API_ENDPOINTS.MEDIA_ITEMS, {
         method: 'POST',
-        body: JSON.stringify(body)
+        body: JSON.stringify({
+          newMediaItems: [mediaItem]
+        })
       })
 
       if (!response.ok) {
-        throw new Error(`Create media item failed! status: ${response.status}`)
+        throw new Error(`Failed to create media item: ${response.status}`)
       }
 
-      const data = await response.json()
-      return data.newMediaItemResults[0]
+      const result = await response.json()
+      return result.newMediaItemResults[0]
     } catch (error) {
       console.error('Error creating media item:', error)
       throw error
     }
   }
 
-  // Función completa: subir imagen a álbum
+  // Subir imagen a un álbum específico
   async uploadImageToAlbum(file, albumId, description = '') {
     try {
-      // Paso 1: Subir archivo
       const uploadToken = await this.uploadFile(file)
-      
-      // Paso 2: Crear media item en el álbum
-      const result = await this.createMediaItem(uploadToken, description, albumId)
-      
-      if (result.status && result.status.message !== 'Success') {
-        throw new Error(`Failed to create media item: ${result.status.message}`)
-      }
-      
-      return result.mediaItem
+      const mediaItem = await this.createMediaItem(uploadToken, description, albumId)
+      return mediaItem
     } catch (error) {
       console.error('Error uploading image to album:', error)
       throw error
     }
   }
 
-  // Agregar media items existentes a un álbum
+  // Agregar elementos multimedia a un álbum
   async addMediaItemsToAlbum(albumId, mediaItemIds) {
     try {
       const response = await googleAuth.authenticatedFetch(
@@ -389,7 +330,7 @@ class GooglePhotosAPI {
       )
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`Failed to add media items to album: ${response.status}`)
       }
 
       return await response.json()
@@ -399,7 +340,7 @@ class GooglePhotosAPI {
     }
   }
 
-  // Remover media items de un álbum
+  // Remover elementos multimedia de un álbum
   async removeMediaItemsFromAlbum(albumId, mediaItemIds) {
     try {
       const response = await googleAuth.authenticatedFetch(
@@ -413,7 +354,7 @@ class GooglePhotosAPI {
       )
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`Failed to remove media items from album: ${response.status}`)
       }
 
       return await response.json()
@@ -423,17 +364,14 @@ class GooglePhotosAPI {
     }
   }
 
-  // Funciones de utilidad
-
-  // Buscar fotos por fecha
+  // Buscar fotos por rango de fechas
   async searchPhotosByDateRange(startDate, endDate) {
     try {
-      const response = await googleAuth.authenticatedFetch(API_ENDPOINTS.SEARCH, {
-        method: 'POST',
-        body: JSON.stringify({
-          filters: {
-            dateFilter: {
-              ranges: [{
+      const body = {
+        filters: {
+          dateFilter: {
+            ranges: [
+              {
                 startDate: {
                   year: startDate.getFullYear(),
                   month: startDate.getMonth() + 1,
@@ -444,10 +382,16 @@ class GooglePhotosAPI {
                   month: endDate.getMonth() + 1,
                   day: endDate.getDate()
                 }
-              }]
-            }
+              }
+            ]
           }
-        })
+        },
+        pageSize: 100
+      }
+
+      const response = await googleAuth.authenticatedFetch(API_ENDPOINTS.SEARCH, {
+        method: 'POST',
+        body: JSON.stringify(body)
       })
 
       if (!response.ok) {
@@ -455,7 +399,11 @@ class GooglePhotosAPI {
       }
 
       const data = await response.json()
-      return data.mediaItems || []
+      
+      return {
+        mediaItems: data.mediaItems || [],
+        nextPageToken: data.nextPageToken
+      }
     } catch (error) {
       console.error('Error searching photos by date range:', error)
       throw error
@@ -465,4 +413,3 @@ class GooglePhotosAPI {
 
 // Exportar instancia singleton
 export const googlePhotosAPI = new GooglePhotosAPI()
-export default googlePhotosAPI

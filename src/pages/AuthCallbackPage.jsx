@@ -32,7 +32,6 @@ export default function AuthCallbackPage() {
 
       // Prevenir procesamiento múltiple del mismo código en esta instancia del componente
       if (hasProcessedCode.current) {
-        console.warn('⚠️ Código ya procesado por esta instancia del componente. Omitiendo re-procesamiento.')
         setStatus('success') // Asumir éxito si ya fue procesado
         setTimeout(() => navigate('/', { replace: true }), 1000)
         return

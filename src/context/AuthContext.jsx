@@ -19,29 +19,20 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
-        console.log('🔍 AuthContext - checkAuthStatus iniciado')
-        console.log('🔍 AuthContext - googleAuth.isAuthenticated():', googleAuth.isAuthenticated())
-        
         if (googleAuth.isAuthenticated()) {
-          console.log('✅ AuthContext - Usuario autenticado')
           setIsAuthenticated(true)
           
           // Obtener información real del usuario de Google
           const cachedUser = googleAuth.getCachedUserInfo()
-          console.log('👤 AuthContext - Usuario en cache:', cachedUser)
           
           if (cachedUser) {
-            console.log('✅ AuthContext - Usando usuario en cache')
             setUser(cachedUser)
           } else {
-            console.log('🔄 AuthContext - Obteniendo usuario del servidor')
             // Si no hay cache, obtener del servidor
             const userInfo = await googleAuth.getUserInfo()
-            console.log('✅ AuthContext - Usuario del servidor:', userInfo)
             setUser(userInfo)
           }
         } else {
-          console.log('❌ AuthContext - Usuario no autenticado')
           setIsAuthenticated(false)
           setUser(null)
         }
@@ -51,7 +42,6 @@ export const AuthProvider = ({ children }) => {
         setUser(null)
       } finally {
         setLoading(false)
-        console.log('🏁 AuthContext - checkAuthStatus completado')
       }
     }
 

@@ -2,21 +2,9 @@ import { GOOGLE_CONFIG, STORAGE_KEYS } from '../utils/constants.js'
 
 class GoogleAuthService {
   constructor() {
-    console.log('🏗️ GoogleAuth - Constructor iniciado')
-    console.log('🏗️ GoogleAuth - Storage keys:', STORAGE_KEYS)
-    
     this.accessToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN)
     this.refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)
     this.tokenExpiry = localStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRY)
-    
-    console.log('🏗️ GoogleAuth - Tokens cargados del localStorage:', {
-      hasAccessToken: !!this.accessToken,
-      hasRefreshToken: !!this.refreshToken,
-      hasTokenExpiry: !!this.tokenExpiry,
-      accessTokenPreview: this.accessToken ? `${this.accessToken.substring(0, 20)}...` : 'null',
-      refreshTokenPreview: this.refreshToken ? `${this.refreshToken.substring(0, 20)}...` : 'null',
-      tokenExpiry: this.tokenExpiry
-    })
   }
 
   // Generar URL de autorización
@@ -101,166 +89,140 @@ class GoogleAuthService {
       })
 
       if (!response.ok) {
-        throw new Error(`Error al obtener tokens: ${response.status} ${response.statusText}`)
+        const errorData = await response.text()
+        throw new Error(`Token exchange failed: ${response.status} - ${errorData}`)
       }
 
       const tokenData = await response.json()
-      
-      // Guardar tokens
       this.saveTokens(tokenData)
       
-      // Marcar el código como procesado para evitar reutilización
+      // Marcar código como procesado
       this.markCodeAsProcessed(code)
       
       return tokenData
     } catch (error) {
+      console.error('Error exchanging code for tokens:', error)
       throw error
     }
   }
 
   // Guardar tokens en localStorage
   saveTokens(tokenData) {
-    console.log('💾 GoogleAuth - saveTokens iniciado:', {
-      hasAccessToken: !!tokenData.access_token,
-      hasRefreshToken: !!tokenData.refresh_token,
-      expiresIn: tokenData.expires_in
-    })
-    
-    this.accessToken = tokenData.access_token
-    this.refreshToken = tokenData.refresh_token
-    
-    // Calcular tiempo de expiración
-    const expiryTime = Date.now() + (tokenData.expires_in * 1000)
-    this.tokenExpiry = expiryTime
+    if (!tokenData.access_token) {
+      throw new Error('No access token received')
+    }
 
-    console.log('⏰ GoogleAuth - Tiempo de expiración calculado:', {
-      now: Date.now(),
-      expiresIn: tokenData.expires_in,
-      expiryTime,
-      expiryDate: new Date(expiryTime)
-    })
+    this.accessToken = tokenData.access_token
+    this.refreshToken = tokenData.refresh_token || this.refreshToken
+
+    // Calcular tiempo de expiración
+    const expiresIn = tokenData.expires_in || 3600 // Default 1 hora
+    const expiryTime = Date.now() + (expiresIn * 1000)
+    this.tokenExpiry = expiryTime.toString()
 
     // Guardar en localStorage
     localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, this.accessToken)
-    if (tokenData.refresh_token) {
+    if (this.refreshToken) {
       localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, this.refreshToken)
     }
-    localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, expiryTime.toString())
-    
-    console.log('✅ GoogleAuth - Tokens guardados en localStorage:', {
-      accessTokenStored: !!localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN),
-      refreshTokenStored: !!localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN),
-      expiryStored: !!localStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRY)
-    })
+    localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, this.tokenExpiry)
   }
 
   // Verificar si el usuario está autenticado
   isAuthenticated() {
-    console.log('🔍 GoogleAuth - isAuthenticated check:', {
-      hasAccessToken: !!this.accessToken,
-      hasTokenExpiry: !!this.tokenExpiry,
-      accessToken: this.accessToken ? `${this.accessToken.substring(0, 20)}...` : 'null',
-      tokenExpiry: this.tokenExpiry
-    })
-    
     if (!this.accessToken || !this.tokenExpiry) {
-      console.log('❌ GoogleAuth - Faltan tokens básicos')
       return false
     }
 
-    // Verificar si el token ha expirado (con margen de 5 minutos)
     const now = Date.now()
-    const expiryWithBuffer = parseInt(this.tokenExpiry) - (5 * 60 * 1000)
-    const isExpired = now >= expiryWithBuffer
+    const expiry = parseInt(this.tokenExpiry)
     
-    console.log('⏰ GoogleAuth - Verificación de expiración:', {
-      now,
-      expiryWithBuffer,
-      isExpired,
-      result: !isExpired
-    })
-    
-    return !isExpired
-  }
-
-  // Renovar token de acceso
-  async refreshAccessToken() {
-    if (!this.refreshToken) {
-      throw new Error('No refresh token available')
+    // Verificar si el token ha expirado
+    if (now >= expiry) {
+      // Si hay refresh token, intentar renovar
+      if (this.refreshToken) {
+        this.refreshAccessToken()
+        return true // Temporalmente true mientras se renueva
+      }
+      return false
     }
 
+    return true
+  }
+
+  // Renovar access token usando refresh token
+  async refreshAccessToken() {
     try {
+      if (!this.refreshToken) {
+        throw new Error('No refresh token available')
+      }
+
+      const tokenRequestBody = new FormData()
+      tokenRequestBody.append('client_id', GOOGLE_CONFIG.CLIENT_ID)
+      tokenRequestBody.append('client_secret', GOOGLE_CONFIG.CLIENT_SECRET)
+      tokenRequestBody.append('refresh_token', this.refreshToken)
+      tokenRequestBody.append('grant_type', 'refresh_token')
+
       const response = await fetch(GOOGLE_CONFIG.TOKEN_URI, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: GOOGLE_CONFIG.CLIENT_ID,
-          client_secret: GOOGLE_CONFIG.CLIENT_SECRET,
-          refresh_token: this.refreshToken,
-          grant_type: 'refresh_token'
-        })
+        body: tokenRequestBody
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`Token refresh failed: ${response.status}`)
       }
 
-      const data = await response.json()
+      const tokenData = await response.json()
       
-      if (data.error) {
-        throw new Error(data.error_description || data.error)
-      }
+      // Actualizar solo el access token y expiry
+      this.accessToken = tokenData.access_token
+      const expiresIn = tokenData.expires_in || 3600
+      const expiryTime = Date.now() + (expiresIn * 1000)
+      this.tokenExpiry = expiryTime.toString()
 
-      // Actualizar tokens
-      this.saveTokens({
-        access_token: data.access_token,
-        refresh_token: this.refreshToken, // Mantener el refresh token actual
-        expires_in: data.expires_in
-      })
+      // Actualizar localStorage
+      localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, this.accessToken)
+      localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, this.tokenExpiry)
 
-      return data.access_token
+      return this.accessToken
     } catch (error) {
       console.error('Error refreshing access token:', error)
-      this.logout() // Limpiar tokens inválidos
+      // Si falla el refresh, limpiar tokens
+      this.logout()
       throw error
     }
   }
 
-  // Obtener token de acceso válido
+  // Obtener un access token válido
   async getValidAccessToken() {
-    console.log('🔑 GoogleAuth - getValidAccessToken iniciado')
-    console.log('🔑 GoogleAuth - Estado actual:', {
-      isAuthenticated: this.isAuthenticated(),
-      hasRefreshToken: !!this.refreshToken,
-      hasAccessToken: !!this.accessToken
-    })
-    
     if (!this.isAuthenticated()) {
-      console.log('🚫 GoogleAuth - Usuario no autenticado')
-      if (this.refreshToken) {
-        console.log('🔄 GoogleAuth - Intentando renovar token con refresh token')
-        await this.refreshAccessToken()
-      } else {
-        console.log('❌ GoogleAuth - No hay refresh token disponible')
-        throw new Error('User not authenticated')
-      }
+      return null
     }
-    
-    console.log('✅ GoogleAuth - Token válido obtenido:', this.accessToken ? `${this.accessToken.substring(0, 20)}...` : 'null')
+
+    // Verificar si el token está por expirar (5 minutos de margen)
+    const now = Date.now()
+    const expiry = parseInt(this.tokenExpiry)
+    const fiveMinutes = 5 * 60 * 1000
+
+    if (expiry - now <= fiveMinutes) {
+      // Renovar token si está por expirar
+      await this.refreshAccessToken()
+    }
+
     return this.accessToken
   }
 
-  // Hacer petición autenticada
+  // Realizar peticiones autenticadas
   async authenticatedFetch(url, options = {}) {
     try {
-      console.log('🔐 GoogleAuth - authenticatedFetch iniciado:', { url, options })
-      
       const token = await this.getValidAccessToken()
-      console.log('🔑 GoogleAuth - Token obtenido:', token ? `${token.substring(0, 20)}...` : 'null')
-      
-      const defaultOptions = {
+      if (!token) {
+        throw new Error('No valid access token available')
+      }
+
+      // Configurar headers de autorización
+      const authOptions = {
+        ...options,
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -268,50 +230,16 @@ class GoogleAuthService {
         }
       }
 
-      console.log('📤 GoogleAuth - Request config:', {
-        url,
-        method: options.method || 'GET',
-        headers: defaultOptions.headers
-      })
+      // Realizar la petición
+      const response = await fetch(url, authOptions)
 
-      const response = await fetch(url, {
-        ...options,
-        ...defaultOptions,
-        headers: {
-          ...defaultOptions.headers,
-          ...options.headers
-        }
-      })
-
-      console.log('📥 GoogleAuth - Response recibida:', {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
-      })
-
-      // Si el token es inválido, intentar renovar
+      // Si el token expiró durante la petición, renovar y reintentar
       if (response.status === 401) {
-        console.log('🔄 GoogleAuth - Token expirado, renovando...')
-        
-        await this.refreshAccessToken()
-        const newToken = await this.getValidAccessToken()
-        console.log('🆕 GoogleAuth - Nuevo token obtenido:', newToken ? `${newToken.substring(0, 20)}...` : 'null')
-        
-        return fetch(url, {
-          ...options,
-          ...defaultOptions,
-          headers: {
-            ...defaultOptions.headers,
-            'Authorization': `Bearer ${newToken}`,
-            ...options.headers
-          }
-        })
-      }
-
-      // Manejar error 403 específicamente
-      if (response.status === 403) {
-        console.error('🚫 GoogleAuth - Acceso denegado (403)')
-        throw new Error(`Acceso denegado (403). Verifica que tengas permisos para acceder a: ${url}`)
+        const newToken = await this.refreshAccessToken()
+        if (newToken) {
+          authOptions.headers.Authorization = `Bearer ${newToken}`
+          return await fetch(url, authOptions)
+        }
       }
 
       return response
@@ -323,83 +251,65 @@ class GoogleAuthService {
 
   // Iniciar proceso de login
   login() {
-    // Limpiar cualquier estado anterior antes de iniciar nuevo login
-    this.logout()
-    
     const authUrl = this.getAuthUrl()
     window.location.href = authUrl
   }
 
-  // Forzar re-autenticación completa
+  // Forzar re-autenticación
   forceReAuth() {
-    // Limpiar todo el estado
+    // Limpiar tokens existentes
     this.logout()
+    
+    // Iniciar nuevo proceso de autenticación
+    this.startNewAuth()
+  }
+
+  // Iniciar nueva autenticación
+  startNewAuth() {
+    // Limpiar cualquier estado anterior
+    localStorage.removeItem('processed_auth_codes')
+    
+    // Generar nueva URL de autorización
+    const authUrl = this.getAuthUrl()
+    
+    // Redirigir al usuario
+    window.location.href = authUrl
+  }
+
+  // Cerrar sesión
+  logout() {
+    // Limpiar tokens
+    this.accessToken = null
+    this.refreshToken = null
+    this.tokenExpiry = null
+    
+    // Limpiar localStorage
+    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
+    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN)
+    localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY)
+    localStorage.removeItem(STORAGE_KEYS.USER_INFO)
     
     // Limpiar códigos procesados
     localStorage.removeItem('processed_auth_codes')
     
     // Limpiar parámetros de URL
     this.clearAuthUrlParams()
-    
-    // Forzar recarga de la página para limpiar completamente el estado
-    window.location.reload()
   }
 
-  // Iniciar nueva autenticación con consentimiento forzado
-  startNewAuth() {
-    // Limpiar estado actual
-    this.logout()
-    
-    // Limpiar códigos procesados
-    localStorage.removeItem('processed_auth_codes')
-    
-    // Generar URL con consentimiento forzado
-    const params = new URLSearchParams({
-      client_id: GOOGLE_CONFIG.CLIENT_ID,
-      redirect_uri: GOOGLE_CONFIG.REDIRECT_URI,
-      response_type: 'code',
-      scope: GOOGLE_CONFIG.SCOPES.join(' '),
-      access_type: 'offline',
-      prompt: 'consent',
-      approval_prompt: 'force'
-    })
-
-    const authUrl = `${GOOGLE_CONFIG.AUTH_URI}?${params.toString()}`
-    
-    // Redirigir a la nueva autenticación
-    window.location.href = authUrl
-  }
-
-  // Cerrar sesión
-  logout() {
-    this.accessToken = null
-    this.refreshToken = null
-    this.tokenExpiry = null
-    
-    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
-    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN)
-    localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY)
-    localStorage.removeItem(STORAGE_KEYS.USER_INFO)
-    
-    // Limpiar parámetros de URL que puedan contener códigos de autorización expirados
-    this.clearAuthUrlParams()
-  }
-
-  // Limpiar parámetros de autorización de la URL
+  // Limpiar parámetros de autenticación de la URL
   clearAuthUrlParams() {
     try {
       const url = new URL(window.location.href)
-      url.searchParams.delete('code')
-      url.searchParams.delete('state')
-      url.searchParams.delete('error')
-      url.searchParams.delete('error_description')
+      const paramsToRemove = ['code', 'state', 'error', 'error_description']
       
-      // Solo actualizar la URL si no estamos en la página de callback
-      if (!url.pathname.includes('/auth/callback')) {
-        window.history.replaceState({}, document.title, url.pathname)
-      }
+      paramsToRemove.forEach(param => {
+        url.searchParams.delete(param)
+      })
+      
+      // Actualizar URL sin recargar la página
+      window.history.replaceState({}, document.title, url.toString())
     } catch (error) {
-      console.warn('Could not clear auth URL parameters:', error)
+      // Error silencioso al limpiar parámetros
     }
   }
 
@@ -409,10 +319,12 @@ class GoogleAuthService {
       const response = await this.authenticatedFetch('https://www.googleapis.com/oauth2/v2/userinfo')
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`Failed to get user info: ${response.status}`)
       }
 
       const userInfo = await response.json()
+      
+      // Cachear información del usuario
       localStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(userInfo))
       
       return userInfo
@@ -422,62 +334,36 @@ class GoogleAuthService {
     }
   }
 
-  // Obtener información del usuario desde localStorage
+  // Obtener información del usuario desde cache
   getCachedUserInfo() {
-    const userInfo = localStorage.getItem(STORAGE_KEYS.USER_INFO)
-    return userInfo ? JSON.parse(userInfo) : null
-  }
-
-  // Verificar si la autenticación actual tiene los scopes requeridos
-  hasRequiredScopes() {
-    if (!this.accessToken) {
-      return false
+    try {
+      const cached = localStorage.getItem(STORAGE_KEYS.USER_INFO)
+      return cached ? JSON.parse(cached) : null
+    } catch (error) {
+      return null
     }
-    
-    // Verificar que tengamos al menos el scope básico de Google Photos
-    const requiredScopes = [
-      'https://www.googleapis.com/auth/photoslibrary',
-      'https://www.googleapis.com/auth/photoslibrary.readonly'
-    ]
-    
-    // Por ahora, solo verificamos que tengamos un token válido
-    // Los scopes reales se verifican en el servidor de Google
-    const hasBasicScope = this.isAuthenticated()
-    
-    return hasBasicScope
   }
 
-  // Método de debug para verificar el estado de autenticación
-  debugAuthState() {
-    // Método de debug removido para producción
+  // Verificar si el usuario tiene los scopes requeridos
+  hasRequiredScopes() {
+    // Por ahora, si está autenticado, asumimos que tiene los scopes
+    // En una implementación más robusta, podríamos verificar los scopes específicos
+    return this.isAuthenticated()
   }
 
-  // Verificar si hay problemas de permisos
+
+
+  // Verificar permisos del usuario
   async checkPermissions() {
     try {
       // Intentar hacer una petición simple para verificar permisos
       const response = await this.authenticatedFetch('https://photoslibrary.googleapis.com/v1/albums?pageSize=1')
-      
-      if (response.status === 403) {
-        const errorText = await response.text()
-        return {
-          hasPermission: false,
-          error: 'insufficient_scopes',
-          message: 'No tienes permisos suficientes para acceder a Google Photos'
-        }
-      }
-      
-      return { hasPermission: true }
+      return response.ok
     } catch (error) {
-      return {
-        hasPermission: false,
-        error: 'unknown',
-        message: 'Error al verificar permisos'
-      }
+      return false
     }
   }
 }
 
 // Exportar instancia singleton
 export const googleAuth = new GoogleAuthService()
-export default googleAuth

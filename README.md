@@ -122,6 +122,23 @@ npm run preview      # Preview del build
 npm run lint         # Linting del código
 ```
 
+## 🐳 Despliegue con Docker
+
+### Despliegue Rápido
+```bash
+# Usar script automatizado
+chmod +x deploy.sh
+./deploy.sh
+
+# O comandos manuales
+docker-compose build
+docker-compose up -d
+```
+
+### Acceso
+- **URL Local**: http://localhost:3000
+- **Documentación**: Ver [DEPLOYMENT.md](./DEPLOYMENT.md) para detalles completos
+
 ## 🔒 Seguridad
 
 - **OAuth2** - Autenticación estándar de la industria

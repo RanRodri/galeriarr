@@ -251,22 +251,34 @@ class GooglePhotosAPI {
   // Subir un archivo
   async uploadFile(file) {
     try {
-      const formData = new FormData()
-      formData.append('file', file)
 
-      const response = await fetch(API_ENDPOINTS.UPLOADS, {
+      const response = await googleAuth.authenticatedFetch(API_ENDPOINTS.UPLOADS, {
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'X-Goog-Upload-Content-Type': file.type,
+          'X-Goog-Upload-Protocol': 'raw'
+        },
+        body: file
       })
 
+    
+
       if (!response.ok) {
-        throw new Error(`Upload failed: ${response.status}`)
+        const errorText = await response.text()
+        console.error('❌ Upload failed with response:', errorText)
+        throw new Error(`Upload failed: ${response.status} - ${errorText}`)
       }
 
       const uploadToken = await response.text()
       return uploadToken
     } catch (error) {
-      console.error('Error uploading file:', error)
+      console.error('❌ Error uploading file:', error)
+      console.error('❌ Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      })
       throw error
     }
   }
@@ -274,30 +286,32 @@ class GooglePhotosAPI {
   // Crear un elemento multimedia
   async createMediaItem(uploadToken, description = '', albumId = null) {
     try {
-      const mediaItem = {
+      const newMediaItems = [{
         description: description,
         simpleMediaItem: {
           uploadToken: uploadToken
         }
+      }]
+
+      const body = {
+        newMediaItems: newMediaItems
       }
 
       if (albumId) {
-        mediaItem.albumId = albumId
+        body.albumId = albumId
       }
 
-      const response = await googleAuth.authenticatedFetch(API_ENDPOINTS.MEDIA_ITEMS, {
+      const response = await googleAuth.authenticatedFetch(API_ENDPOINTS.BATCH_CREATE, {
         method: 'POST',
-        body: JSON.stringify({
-          newMediaItems: [mediaItem]
-        })
+        body: JSON.stringify(body)
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to create media item: ${response.status}`)
+        throw new Error(`Create media item failed! status: ${response.status}`)
       }
 
-      const result = await response.json()
-      return result.newMediaItemResults[0]
+      const data = await response.json()
+      return data.newMediaItemResults[0]
     } catch (error) {
       console.error('Error creating media item:', error)
       throw error
@@ -307,9 +321,17 @@ class GooglePhotosAPI {
   // Subir imagen a un álbum específico
   async uploadImageToAlbum(file, albumId, description = '') {
     try {
+      // Paso 1: Subir archivo
       const uploadToken = await this.uploadFile(file)
-      const mediaItem = await this.createMediaItem(uploadToken, description, albumId)
-      return mediaItem
+      
+      // Paso 2: Crear media item en el álbum
+      const result = await this.createMediaItem(uploadToken, description, albumId)
+      
+      if (result.status && result.status.message !== 'Success') {
+        throw new Error(`Failed to create media item: ${result.status.message}`)
+      }
+      
+      return result.mediaItem
     } catch (error) {
       console.error('Error uploading image to album:', error)
       throw error

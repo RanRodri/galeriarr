@@ -3,8 +3,8 @@ import { AuthProvider } from './context/AuthContext.jsx'
 import AlbumsPage from './pages/AlbumsPage.jsx'
 import AlbumDetailPage from './pages/AlbumDetailPage.jsx'
 import AuthCallbackPage from './pages/AuthCallbackPage.jsx'
-import Header from './component/Header.jsx'
-import Footer from './component/Footer.jsx'
+import Header from './components/Header.jsx'
+import Footer from './components/Footer.jsx'
 import FormPage from './pages/FormPage.jsx'
 
 

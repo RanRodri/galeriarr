@@ -225,9 +225,13 @@ class GoogleAuthService {
         ...options,
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
           ...options.headers
         }
+      }
+
+      // Solo agregar Content-Type por defecto si no se especifica y no es un archivo
+      if (!options.headers?.['Content-Type'] && !(options.body instanceof File)) {
+        authOptions.headers['Content-Type'] = 'application/json'
       }
 
       // Realizar la petición

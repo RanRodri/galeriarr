@@ -1,316 +1,266 @@
-import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { useImages } from '../hooks/useImages'
+import { useImageUpload } from '../hooks/useImageUpload'
+import { googlePhotosAPI } from '../services/googlePhotosAPI'
+import ImageGrid from '../components/ImageGrid'
+import MaximizedImageView from '../components/MaximizedImageView'
+import Swal from 'sweetalert2'
 
 export default function AlbumDetailPage() {
   const { albumId } = useParams()
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  
+  // Estados principales
   const [selectedImage, setSelectedImage] = useState(null)
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  
+  // Hook personalizado para manejo de imágenes
+  const { 
+    images, 
+    loading,
+    hasMoreImages,
+    loadMoreImages, 
+    reloadImages,
+    // Estados de paginación por página
+    currentPage,
+    totalPages,
+    currentPageImages,
+    // Funciones de paginación por página
+    goToPage
+  } = useImages(albumId)
+  
+  // Hook personalizado para subida de imágenes
+  const { uploading, handleImageUpload } = useImageUpload(
+    (file, description) => googlePhotosAPI.uploadImageToAlbum(file, albumId, description),
+    reloadImages
+  )
 
-  // Datos simulados para las imágenes del álbum
-  const albumImages = [
-    {
-      id: 1,
-      title: "Sunset Over Mountains",
-      url: "https://lh3.googleusercontent.com/aida-public/AB6AXuAuUT7nh8U7op3z0Wrrx7vRwnQgFa49vu5N1szNAB_Ru8jYCN1y3CfieQFbs2PIN88bRJq4-W86rf2xv0aS-23yihqHHRZC5C12-kP2zg9sMKVxWnaL6esALUp_Icm3kBOqACvCQ1mxTEpQKHW2VLPIZ98ywED5iEDo_0gsNWKbdm-Tw5L75ZfS_3qlxSGWSoFdTD2CUs43XS5z6fX3HYZSNcCV7Z28YHbYLUGBj9YhBg_xiYyjD6bP7Gysx4-4SBU8nq5MTURrr7E",
-      uploadedDate: "Uploaded 2 days ago",
-      fileSize: "2.4 MB",
-      dimensions: "1920x1080",
-      camera: "Canon EOS R5"
-    },
-    {
-      id: 2,
-      title: "City Lights at Night",
-      url: "https://lh3.googleusercontent.com/aida-public/AB6AXuCelihOKK3zl87_JGJf8zjoN0jtT-uqG7rq4mXytPHZzf2T44ulQs5rhSRA3qujKyzdKusFENQuYtxGTC9gy7Axy17UqFj7mV0VsaXzIyq6wI6J210UeOxRoyfTWxtqFTCx2fn2aci2pdvslguxrfzfAeG5XB3_3ldauZVKfKhIpsSFT2HHLWgOZ7xzLyGCMeF6aTorRWhFC7JmtHQ2tRfjlxF0sF-Gfm0OmnZRQYPPYDPmacecdou74OYdJQc1oVp670vXa3swThc",
-      uploadedDate: "Uploaded 3 days ago",
-      fileSize: "3.1 MB",
-      dimensions: "2560x1440",
-      camera: "Sony A7R IV"
-    },
-    {
-      id: 3,
-      title: "Beach Vacation",
-      url: "https://lh3.googleusercontent.com/aida-public/AB6AXuBwdq-lzACDoqdyyHCoxtb9XpYbGk8kvbSXhu9rMRn_Od-RZzltiqQIKELKAN-rlV3nWFWvrGJUfp4FkyQy49HeJGcKK0zQouD1gDy-7csQ2KjcskUwM6LhlD4Kxhs4oHsjnscJcDAX0_FbWZMQuLtl23VxzvlS83y-Jkx6-BKlJJmmv3v-wpHLEU4Ar_2lfF2vACN6ywtGxoV4ClgtZ8X_N3_L-e6QWVNoka09km_By93xfgfTB0c9jmuSOzEgHJKACNGGBRCI4aM",
-      uploadedDate: "Uploaded 5 days ago",
-      fileSize: "1.8 MB",
-      dimensions: "1600x1200",
-      camera: "iPhone 14 Pro"
-    },
-    {
-      id: 4,
-      title: "Forest Trail",
-      url: "https://lh3.googleusercontent.com/aida-public/AB6AXuDmbiK1YKpzgG1iZFHa9P5tqPtINKjwqBAchXQXRMsuQPaw2Ph6lVgXIPvr-uZE6pzpe_zoleGX9FNp5NpkaS_AMXhHzfatjYfmrQVH3haFxFuAOSq0cGK79xMEA1DDW4nwNNnOfF-0ehrwnzhHg6rDn4da5kUg8zc0HR3jbsSbZU34Fp4KlrTsarUyImXbMQ9zIKUevGWtuRFvOjeZZf-ELaa7TNjTGlK_0T4VG1YiianHB8Wm9Qjk1oIHTR5pOjr3pCcU6471TXU",
-      uploadedDate: "Uploaded 1 week ago",
-      fileSize: "2.7 MB",
-      dimensions: "2048x1536",
-      camera: "Nikon D850"
-    },
-    {
-      id: 5,
-      title: "Urban Exploration",
-      url: "https://lh3.googleusercontent.com/aida-public/AB6AXuDXAW6Bk968t4cWPORVv_m-FFU2X30MdfAluw5pCFo_KNfVl2CQoIj74ugoUp9WwfZrR5vXiQslZKW9Z9QDj1iZb1BIpQnYt__WAnXuqObGAekHAXyJzmqgEaQzB-dmPTl_6Mvxuh4OEB3MMMDdb5mzd1wM2grSBCEFu5CceGUJuRONylADaCYq6o_31Aqn-P7R0N5qO5Zyi2fsrZCV78Gfv3xTv8IQYpbpX11_H1s6byI9CHURURSaXfNw8ArqMDsnT4vXVJkX0JA",
-      uploadedDate: "Uploaded 2 weeks ago",
-      fileSize: "3.5 MB",
-      dimensions: "3024x4032",
-      camera: "Fujifilm X-T4"
-    },
-    {
-      id: 6,
-      title: "Wildlife Photography",
-      url: "https://lh3.googleusercontent.com/aida-public/AB6AXuArctKY5mfmHWcQ_iLsrAcsgJeDYzu4AVm5z9m7hwX4u4HZJM-JKi2vb54YJQYGhuOyyk_8BsLOKOvjZXDN5f06zWAC6znYOCxY588UW0S0GzEX4GribNdbPhFaz0GTcBrPo_iuabb6xp0v4FKtmSNrHXebRCLshrSfA9V9YLfam6RXKyYAhHRwgHesscx2X_ANhK0rgA-2qFtr_fRyccvublo8huVAmlNalqhbqgJoktfarYUQWX2p9slwSsQ5oNLaCYsXOrjFCb0",
-      uploadedDate: "Uploaded 3 weeks ago",
-      fileSize: "4.2 MB",
-      dimensions: "4000x3000",
-      camera: "Canon R6 Mark II"
-    },
-    {
-      id: 7,
-      title: "Abstract Art",
-      url: "https://lh3.googleusercontent.com/aida-public/AB6AXuAvRIrwvJGeytiBiuSiAQjZcio17JV_UGsgybG0u-WU5UFkhmeLDldJa4FYqIFUVbfDzASOKjqLLwCIjWNl-vtBUJzsQTn5t-O33umOqgNn3bkwPPKOMCmjZodDD0T-k3RL5hM73EdKifjWs84MelS141GDls3DJMVIgXdmXpXgl7Cn2vn3w1rI5iOSS9Ky939FvfMIokaVZcwwOc_dP0m2TWdnv8DM-WgUYbUom1iB-9QeCBk_15XTEaKgeXJJ_hMkV80A50LPfHA",
-      uploadedDate: "Uploaded 1 month ago",
-      fileSize: "1.5 MB",
-      dimensions: "1440x1800",
-      camera: "Olympus OM-1"
-    },
-    {
-      id: 8,
-      title: "Family Portrait",
-      url: "https://lh3.googleusercontent.com/aida-public/AB6AXuAppPp1jf5epD9Sz9qc5dY-64QpyXo90S6ZndZ1TBt1a1zT5VE4QL5wMrSPaXH6Gs8-0JtfbKqJxVqT60LsgG__fA6nDk6ZfoUagvgNZ4e1Zr0x9Zp3r_6dyWqRqhrFqMndsr3kJwkhmN9YLLj_t7y2W7Gwdi1UxA56KX-1TwrwTXORcG8BX9KTOGkJMH2SknRWrcYeVSM0Pv7eKFzL6VF0ltlgBJHbim0Wu90lXoF4xUYa5ZV8ZnJC8F_39-Xtw89zxjbAyjbg0kg",
-      uploadedDate: "Uploaded 2 months ago",
-      fileSize: "2.9 MB",
-      dimensions: "2400x1600",
-      camera: "Sony A7 III"
-    },
-    {
-      id: 9,
-      title: "Travel Diary",
-      url: "https://lh3.googleusercontent.com/aida-public/AB6AXuDKOQLxboPJGYmKFSZ0vvVNKMAqbMljv4OojC-ByZ-kE1NFbdGtjqnJuKVgqscoWC8WeC8ybX-MYcw0R7loekJDyQXNCy0XUVNkJ2jLaJv6CLE1BvKObkH3RpWB0ADjKnJLjMZHQz-mjrGVlq8kchUO1QbYgwHC8vujHHPROGZhI-MgXPwHOQw3Vk0sYO4tWmmq1x_DSoiYcUeu6CEL_KuWIPTD-Tc7LLr8ZObKYwYqvQqMlbbaBPICqNtGpGQt9RILRM6LUPMseIM",
-      uploadedDate: "Uploaded 3 months ago",
-      fileSize: "3.3 MB",
-      dimensions: "2880x1920",
-      camera: "Canon EOS R"
-    },
-    {
-      id: 10,
-      title: "Nature's Beauty",
-      url: "https://lh3.googleusercontent.com/aida-public/AB6AXuB9PD4Xdu1P3KMkXvCENJPrIJeZaIL7krkvlV6iivdwOd3S9KovkaLCaSRVlvUr_zKYmmX3wHdYNoNJ3DGEkHN4buJK9xZbl3U4x7lk4F2mHpd-HCJqABVmCQvuaqHPzatI24NkPvZIS-vehklxFsKEVGpdxGPXqdwd2OKSnvX9BDBifTAMQcEvEc9GxlNRiDn-SRnQzWXPTyJzSZFlK7klpSPAwTp5pahSb82dx0iFV1IQ21FhyzZ0XxrdAFZnBG41cpvMiXHliss",
-      uploadedDate: "Uploaded 4 months ago",
-      fileSize: "2.1 MB",
-      dimensions: "1920x1280",
-      camera: "Panasonic GH5"
-    },
-    {
-      id: 11,
-      title: "Architectural Marvels",
-      url: "https://lh3.googleusercontent.com/aida-public/AB6AXuAF-e6SieVif3NPPA5xD2fV0aQpohY8awq4eQlDxBbftf9JYm5b_qPcA4lVcalUZxHEjX4EWRSr4OdIdk6JIIwEaz331cGErzUFoIk7EDlHgB9bb3u56UKU7k-2iNgxbC21wcZgTbNJC5jOln5U6HaNHY7rnBEN7v0ACh8qD0dfmniAgLpDrp-b-nv0a03I4UFxzMmlUNaEip4jldsH6ocQbTvjh9YXcb9vDZy4uB5dA_DGIsz94Fi__z-o8NrrhgNUXDMvBmNFru4",
-      uploadedDate: "Uploaded 5 months ago",
-      fileSize: "4.7 MB",
-      dimensions: "3840x2160",
-      camera: "Nikon Z9"
-    },
-    {
-      id: 12,
-      title: "Culinary Delights",
-      url: "https://lh3.googleusercontent.com/aida-public/AB6AXuD-ZtZZD-2_234BGz8f0P9QbRqaavIykVVGgfjvJFwZWYZP-1hX2EVZDS71zsRC509ZaT5maf749o7ntYmdToHLaq3yKSkIGsczMPv_crryb8akDQpVGSiwebpDIXVR68Y-9fyJ5-kwxD_tgg2FtRgPadSCrHkov22-Udysde6geQVeHO4bjRXkFQlr0RLWsXDqxBsuAJwG5ojsQ5u01a-Ri1SfYYsw7PgFgCuZNCaB-aAHklo_jQAeP2eJDDzEDU7z1DEe1dLkUgA",
-      uploadedDate: "Uploaded 6 months ago",
-      fileSize: "1.9 MB",
-      dimensions: "1800x1200",
-      camera: "Leica Q2"
+  // Efecto para cargar imágenes al montar el componente
+  useEffect(() => {
+    if (albumId) {
+      reloadImages()
     }
-  ]
+  }, [albumId])
 
-  // Función para manejar el clic en una imagen
+  // Función para manejar clic en imagen
   const handleImageClick = (image) => {
     setSelectedImage(image)
+    const index = images.findIndex(img => img.id === image.id)
+    setCurrentImageIndex(index >= 0 ? index : 0)
   }
 
-  // Función para cerrar la vista maximizada
+  // Función para cerrar vista maximizada
   const handleCloseMaximized = () => {
     setSelectedImage(null)
+    setCurrentImageIndex(0)
   }
 
-  // Función para navegar entre imágenes en vista maximizada
+  // Función para navegar entre imágenes
   const handleNavigateImage = (direction) => {
-    const currentIndex = albumImages.findIndex(img => img.id === selectedImage.id)
+    if (!selectedImage || images.length === 0) return
+
     let newIndex
-    
     if (direction === 'next') {
-      newIndex = currentIndex === albumImages.length - 1 ? 0 : currentIndex + 1
+      newIndex = currentImageIndex === images.length - 1 ? 0 : currentImageIndex + 1
     } else {
-      newIndex = currentIndex === 0 ? albumImages.length - 1 : currentIndex - 1
+      newIndex = currentImageIndex === 0 ? images.length - 1 : currentImageIndex - 1
     }
     
-    setSelectedImage(albumImages[newIndex])
+    setCurrentImageIndex(newIndex)
+    setSelectedImage(images[newIndex])
   }
 
-  // Simular datos del álbum basados en el ID
-  const albumData = {
-    title: albumId ? `Album ${albumId}` : "My Album",
-    totalImages: albumImages.length
+  // Función para manejar subida de imágenes
+  const handleUploadImages = () => {
+    if (!user) {
+      Swal.fire({
+        title: 'Inicia sesión',
+        text: 'Debes iniciar sesión para subir imágenes',
+        icon: 'info',
+        confirmButtonText: 'Entendido'
+      })
+      return
+    }
+    
+    handleImageUpload()
   }
 
-  return (
-    <div
-      className="relative flex size-full min-h-screen flex-col bg-slate-50 group/design-root overflow-x-hidden"
-      style={{ fontFamily: '"Plus Jakarta Sans", "Noto Sans", sans-serif' }}
-    >
-      <div className="layout-container flex h-full grow flex-col">
-        <div className="px-6 md:px-10 lg:px-40 flex flex-1 justify-center py-5">
-          <div className="layout-content-container flex flex-col max-w-[960px] flex-1">
-            {/* Header del álbum */}
-            <div className="flex flex-wrap justify-between gap-3 p-4">
-              <div className="flex items-center gap-4">
-                <Link 
-                  to="/" 
-                  className="text-[#0e161b] hover:text-[#4e7a97] transition-colors"
-                  aria-label="Volver a álbumes"
-                >
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    width="24" 
-                    height="24" 
-                    fill="currentColor" 
-                    viewBox="0 0 256 256"
-                  >
-                    <path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"></path>
+  // Función para volver a la lista de álbumes
+  const handleBackToAlbums = () => {
+    navigate('/')
+  }
+
+  // Función para manejar cambio de página
+  const handlePageChange = (page) => {
+    goToPage(page)
+  }
+
+  // Renderizado condicional para estado de carga
+  if (loading && images.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        {/* Header de carga */}
+        <div className="bg-white/80 backdrop-blur-sm border-b border-white/20 shadow-lg">
+          <div className="container mx-auto px-6 py-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl animate-pulse"></div>
+                <div className="h-6 bg-gray-200 rounded-lg w-48 animate-pulse"></div>
+              </div>
+              <div className="h-10 bg-gray-200 rounded-xl w-32 animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Contenido de carga */}
+        <div className="container mx-auto px-6 py-20">
+          <div className="text-center max-w-md mx-auto">
+            {/* Icono de carga animado */}
+            <div className="relative mb-8">
+              <div className="w-24 h-24 mx-auto">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full animate-ping opacity-20"></div>
+                <div className="absolute inset-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full animate-pulse"></div>
+                <div className="absolute inset-4 bg-white rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-blue-600 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                </Link>
-                <div>
-                  <p className="text-[#0e161b] tracking-light text-[32px] font-bold leading-tight min-w-72">
-                    {albumData.title}
-                  </p>
-                  <p className="text-[#4e7a97] text-sm font-normal leading-normal">
-                    {albumData.totalImages} fotos
-                  </p>
                 </div>
               </div>
-              <button
-                className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-8 px-4 bg-[#e7eef3] text-[#0e161b] text-sm font-medium leading-normal hover:bg-[#d1dde6] transition-colors"
-                onClick={() => console.log('Upload image functionality')}
-              >
-                <span className="truncate">Upload Image</span>
-              </button>
             </div>
-
-            {/* Grid de imágenes */}
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(158px,1fr))] gap-3 p-4">
-              {albumImages.map((image) => (
-                <div key={image.id} className="flex flex-col gap-3 pb-3">
-                  <div
-                    className="w-full bg-center bg-no-repeat aspect-square bg-cover rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
-                    style={{ backgroundImage: `url("${image.url}")` }}
-                    onClick={() => handleImageClick(image)}
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`Ver imagen: ${image.title}`}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        handleImageClick(image)
-                      }
-                    }}
-                  />
-                  <div>
-                    <p className="text-[#0e161b] text-base font-medium leading-normal">
-                      {image.title}
-                    </p>
-                    <p className="text-[#4e7a97] text-sm font-normal leading-normal">
-                      {image.uploadedDate}
-                    </p>
-                    <div className="text-[#4e7a97] text-xs font-normal leading-normal mt-1">
-                      <p>{image.fileSize} • {image.dimensions}</p>
-                      <p>{image.camera}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            
+            {/* Texto de carga */}
+            <h2 className="text-2xl font-bold text-gray-800 mb-3 bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+              Cargando tu álbum
+            </h2>
+            <p className="text-gray-600 text-lg">
+              Preparando una experiencia visual increíble...
+            </p>
+            
+            {/* Indicador de progreso */}
+            <div className="mt-8 w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full animate-pulse" style={{ width: '60%' }}></div>
             </div>
           </div>
         </div>
       </div>
+    )
+  }
 
-      {/* Modal para vista maximizada */}
-      {selectedImage && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
-          onClick={handleCloseMaximized}
-        >
-          <div 
-            className="relative max-w-4xl max-h-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Botón cerrar */}
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {/* Header moderno con glassmorphism */}
+      <div className="bg-white/80 backdrop-blur-sm border-b border-white/20 shadow-lg sticky top-0 z-50">
+        <div className="container mx-auto px-6 py-6">
+          {/* Layout del header */}
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+            {/* Botón de regreso con diseño moderno */}
             <button
-              className="absolute top-4 right-4 z-10 text-white hover:text-gray-300 transition-colors"
-              onClick={handleCloseMaximized}
-              aria-label="Cerrar vista maximizada"
+              onClick={handleBackToAlbums}
+              className="group flex items-center space-x-3 px-4 py-3 rounded-xl bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300 transition-all duration-300 transform hover:scale-105 hover:shadow-lg border border-gray-200/50"
+              aria-label="Volver a la lista de álbumes"
             >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="32" 
-                height="32" 
-                fill="currentColor" 
-                viewBox="0 0 256 256"
-              >
-                <path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"></path>
-              </svg>
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center group-hover:rotate-12 transition-transform duration-300">
+                <svg 
+                  className="w-4 h-4 text-white transition-transform group-hover:-translate-x-1" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <span className="text-sm text-gray-500 font-medium">Volver a</span>
+                <span className="block text-gray-800 font-semibold">Álbumes</span>
+              </div>
             </button>
 
-            {/* Botones de navegación */}
-            <button
-              className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 transition-colors"
-              onClick={() => handleNavigateImage('prev')}
-              aria-label="Imagen anterior"
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="32" 
-                height="32" 
-                fill="currentColor" 
-                viewBox="0 0 256 256"
-              >
-                <path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"></path>
-              </svg>
-            </button>
-
-            <button
-              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 transition-colors"
-              onClick={() => handleNavigateImage('next')}
-              aria-label="Siguiente imagen"
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="32" 
-                height="32" 
-                fill="currentColor" 
-                viewBox="0 0 256 256"
-              >
-                <path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"></path>
-              </svg>
-            </button>
-
-            {/* Imagen maximizada */}
-            <img
-              src={selectedImage.url}
-              alt={selectedImage.title}
-              className="max-w-full max-h-full object-contain"
-            />
-
-            {/* Información de la imagen */}
-            <div className="absolute bottom-4 left-4 right-4 bg-black bg-opacity-70 text-white p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-2">{selectedImage.title}</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p><span className="font-medium">Tamaño:</span> {selectedImage.fileSize}</p>
-                  <p><span className="font-medium">Dimensiones:</span> {selectedImage.dimensions}</p>
+            {/* Título del álbum con diseño premium */}
+            <div className="text-center flex-1">
+              <div className="inline-flex items-center space-x-3 px-6 py-3 bg-gradient-to-r from-white to-gray-50 rounded-2xl shadow-sm border border-white/50">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
                 </div>
                 <div>
-                  <p><span className="font-medium">Cámara:</span> {selectedImage.camera}</p>
-                  <p><span className="font-medium">Fecha:</span> {selectedImage.uploadedDate}</p>
+                  <h1 className="text-xl lg:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                    Detalle del Álbum
+                  </h1>
+                  <p className="text-xs text-gray-500 font-medium">
+                    {images.length} imágenes • Página {currentPage} de {totalPages}
+                  </p>
                 </div>
               </div>
             </div>
+
+            {/* Botón de subida con diseño premium */}
+            <button
+              onClick={handleUploadImages}
+              disabled={uploading}
+              className="group relative overflow-hidden px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-xl disabled:transform-none disabled:shadow-none w-full lg:w-auto"
+              aria-label="Subir imágenes al álbum"
+            >
+              {/* Fondo del botón */}
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 group-hover:from-blue-500 group-hover:via-indigo-500 group-hover:to-purple-500 transition-all duration-300"></div>
+              
+              {/* Contenido del botón */}
+              <div className="relative flex items-center justify-center space-x-3 text-white">
+                {uploading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span className="font-medium">Subiendo...</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center group-hover:bg-white/30 transition-colors duration-300">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                    </div>
+                    <span className="font-medium">Subir imágenes</span>
+                  </>
+                )}
+              </div>
+              
+              {/* Efecto de brillo */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+            </button>
           </div>
         </div>
+      </div>
+
+      {/* Contenido principal con espaciado mejorado */}
+      <div className="container mx-auto px-6 py-8">
+        {/* Grid de imágenes */}
+        <div className="bg-white/60 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/20">
+          <ImageGrid
+            images={currentPageImages}
+            onImageClick={handleImageClick}
+            onLoadMore={loadMoreImages}
+            hasMoreImages={hasMoreImages}
+            loading={loading}
+            // Props de paginación por página
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+        </div>
+      </div>
+
+      {/* Vista maximizada de imagen */}
+      {selectedImage && (
+        <MaximizedImageView
+          selectedImage={selectedImage}
+          images={images}
+          onClose={handleCloseMaximized}
+          onNavigate={handleNavigateImage}
+        />
       )}
     </div>
   )
 }
+

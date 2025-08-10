@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.jsx'
+import { useAlbums } from '../hooks/useAlbums.js'
+import LoginPrompt from '../components/LoginPrompt.jsx'
 import Swal from 'sweetalert2'
 
 export default function FormPage() {
+  const navigate = useNavigate()
+  const { isAuthenticated, loading: authLoading } = useAuth()
+  const { createAlbum } = useAlbums()
+  
   // Estado simple del formulario
   const [formData, setFormData] = useState({
     documentType: '',
@@ -225,15 +233,29 @@ export default function FormPage() {
     setIsSubmitting(true)
     
     try {
-      // Simular creación
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Generar nombre del álbum basado en los datos del formulario
+      const startDateFormatted = new Date(formData.startDate).toLocaleDateString('es-ES')
+      const endDateFormatted = new Date(formData.endDate).toLocaleDateString('es-ES')
+      const albumTitle = `Álbum de ${formData.name} ${formData.lastName} (${startDateFormatted} - ${endDateFormatted})`
+      
+      // Crear álbum real en Google Photos
+      const newAlbum = await createAlbum(albumTitle)
       
       await Swal.fire({
         icon: 'success',
-        title: '¡Álbum creado!',
-        text: 'Su álbum ha sido creado exitosamente.',
-        timer: 3000,
-        timerProgressBar: true
+        title: '¡Álbum creado exitosamente!',
+        html: `
+          <p>Se ha creado el álbum: <strong>"${albumTitle}"</strong></p>
+          <p class="text-sm text-gray-600 mt-2">¿Desea ir al álbum ahora?</p>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Ir al Álbum',
+        cancelButtonText: 'Quedarse Aquí',
+        confirmButtonColor: '#28a745'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          navigate(`/album/${newAlbum.id}`)
+        }
       })
       
       // Limpiar formulario
@@ -249,10 +271,12 @@ export default function FormPage() {
       setTouched({})
       
     } catch (error) {
+      console.error('Error creating album:', error)
       await Swal.fire({
         icon: 'error',
-        title: 'Error',
-        text: 'Hubo un problema al crear el álbum. Inténtelo nuevamente.'
+        title: 'Error al crear el álbum',
+        text: 'Hubo un problema al crear el álbum en Google Photos. Verifique su conexión e inténtelo nuevamente.',
+        confirmButtonColor: '#dc3545'
       })
     } finally {
       setIsSubmitting(false)
@@ -260,6 +284,20 @@ export default function FormPage() {
   }
 
   const getMinDate = () => new Date().toISOString().split('T')[0]
+
+  // Si está cargando la autenticación
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  // Si no está autenticado, mostrar prompt de login
+  if (!isAuthenticated) {
+    return <LoginPrompt />
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8">
